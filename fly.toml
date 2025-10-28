@@ -7,6 +7,12 @@ app = 'space-backend'
 primary_region = 'ams'
 
 [build]
+  [build.args]
+    GO_VERSION = "1.23"
+
+[env]
+  PORT = "8080"
+  ENVIRONMENT = "production"
 
 [http_service]
   internal_port = 8080
