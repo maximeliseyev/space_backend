@@ -1,0 +1,282 @@
+package service
+
+import (
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/space/backend/internal/models"
+	"github.com/space/backend/internal/repository"
+	"gorm.io/gorm"
+)
+
+var (
+	ErrBookingConflict = errors.New("booking conflict: room is already booked for this time")
+	ErrInvalidTime     = errors.New("invalid time: end time must be after start time")
+	ErrPastBooking     = errors.New("cannot create booking in the past")
+	ErrRoomNotFound    = errors.New("room not found")
+	ErrNotAuthorized   = errors.New("not authorized to perform this action")
+)
+
+// BookingService handles booking business logic
+type BookingService struct {
+	bookingRepo *repository.BookingRepository
+	roomRepo    *repository.RoomRepository
+	userRepo    *repository.UserRepository
+}
+
+// NewBookingService creates a new booking service
+func NewBookingService(
+	bookingRepo *repository.BookingRepository,
+	roomRepo *repository.RoomRepository,
+	userRepo *repository.UserRepository,
+) *BookingService {
+	return &BookingService{
+		bookingRepo: bookingRepo,
+		roomRepo:    roomRepo,
+		userRepo:    userRepo,
+	}
+}
+
+// CreateBookingRequest represents a request to create a booking
+type CreateBookingRequest struct {
+	RoomID                uint      `json:"room_id" binding:"required"`
+	StartTime             time.Time `json:"start_time" binding:"required"`
+	EndTime               time.Time `json:"end_time" binding:"required"`
+	Title                 string    `json:"title" binding:"required"`
+	Description           string    `json:"description"`
+	EstimatedParticipants int       `json:"estimated_participants"`
+	IsJoinable            bool      `json:"is_joinable"`
+	ParticipantIDs        []uint    `json:"participant_ids"`
+}
+
+// CreateBooking creates a new booking with validation
+func (s *BookingService) CreateBooking(creatorID uint, req CreateBookingRequest) (*models.Booking, error) {
+	// Валидация времени
+	if !req.EndTime.After(req.StartTime) {
+		return nil, ErrInvalidTime
+	}
+
+	// Проверка что бронирование не в прошлом
+	if req.StartTime.Before(time.Now()) {
+		return nil, ErrPastBooking
+	}
+
+	// Проверка существования комнаты
+	room, err := s.roomRepo.GetByID(req.RoomID)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrRoomNotFound
+		}
+		return nil, err
+	}
+
+	if !room.IsActive {
+		return nil, errors.New("room is not active")
+	}
+
+	// Проверка на конфликты
+	hasConflict, err := s.bookingRepo.CheckConflict(req.RoomID, req.StartTime, req.EndTime, nil)
+	if err != nil {
+		return nil, err
+	}
+	if hasConflict {
+		return nil, ErrBookingConflict
+	}
+
+	// Получаем участников если они указаны
+	var participants []models.User
+	if len(req.ParticipantIDs) > 0 {
+		participants, err = s.userRepo.GetByIDs(req.ParticipantIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Создаем бронирование
+	booking := &models.Booking{
+		RoomID:                req.RoomID,
+		CreatorID:             creatorID,
+		StartTime:             req.StartTime,
+		EndTime:               req.EndTime,
+		Title:                 req.Title,
+		Description:           req.Description,
+		EstimatedParticipants: req.EstimatedParticipants,
+		IsJoinable:            req.IsJoinable,
+		Status:                models.BookingStatusConfirmed,
+		Participants:          participants,
+	}
+
+	err = s.bookingRepo.Create(booking)
+	if err != nil {
+		return nil, err
+	}
+
+	// Загружаем полную информацию о бронировании
+	return s.bookingRepo.GetByID(booking.ID)
+}
+
+// GetBooking gets a booking by ID
+func (s *BookingService) GetBooking(id uint) (*models.Booking, error) {
+	return s.bookingRepo.GetByID(id)
+}
+
+// GetUserBookings gets all bookings for a user
+func (s *BookingService) GetUserBookings(userID uint) ([]models.Booking, error) {
+	return s.bookingRepo.GetByUserID(userID)
+}
+
+// GetUpcomingBookings gets upcoming bookings
+func (s *BookingService) GetUpcomingBookings(limit int) ([]models.Booking, error) {
+	return s.bookingRepo.GetUpcoming(limit)
+}
+
+// GetCalendarEvents gets bookings for calendar view
+func (s *BookingService) GetCalendarEvents(start, end time.Time) ([]models.Booking, error) {
+	return s.bookingRepo.GetForCalendar(start, end)
+}
+
+// CancelBooking cancels a booking (only creator can cancel)
+func (s *BookingService) CancelBooking(bookingID, userID uint) error {
+	booking, err := s.bookingRepo.GetByID(bookingID)
+	if err != nil {
+		return err
+	}
+
+	// Проверка прав доступа
+	if booking.CreatorID != userID {
+		return ErrNotAuthorized
+	}
+
+	return s.bookingRepo.Cancel(bookingID)
+}
+
+// JoinBooking allows a user to join a joinable booking
+func (s *BookingService) JoinBooking(bookingID, userID uint) error {
+	booking, err := s.bookingRepo.GetByID(bookingID)
+	if err != nil {
+		return err
+	}
+
+	if !booking.IsJoinable {
+		return errors.New("this booking is not joinable")
+	}
+
+	if booking.Status != models.BookingStatusConfirmed {
+		return errors.New("cannot join cancelled or completed booking")
+	}
+
+	return s.bookingRepo.AddParticipant(bookingID, userID)
+}
+
+// LeaveBooking allows a participant to leave a booking
+func (s *BookingService) LeaveBooking(bookingID, userID uint) error {
+	booking, err := s.bookingRepo.GetByID(bookingID)
+	if err != nil {
+		return err
+	}
+
+	// Создатель не может покинуть бронирование, только отменить
+	if booking.CreatorID == userID {
+		return errors.New("creator cannot leave booking, use cancel instead")
+	}
+
+	return s.bookingRepo.RemoveParticipant(bookingID, userID)
+}
+
+// CheckAvailability checks if a room is available for a time period
+func (s *BookingService) CheckAvailability(roomID uint, start, end time.Time) (bool, error) {
+	hasConflict, err := s.bookingRepo.CheckConflict(roomID, start, end, nil)
+	if err != nil {
+		return false, err
+	}
+	return !hasConflict, nil
+}
+
+// GetRoomBookings gets all bookings for a specific room in a time range
+func (s *BookingService) GetRoomBookings(roomID uint, start, end time.Time) ([]models.Booking, error) {
+	return s.bookingRepo.GetByRoomAndTimeRange(roomID, start, end)
+}
+
+// UpdateBookingRequest represents a request to update a booking
+type UpdateBookingRequest struct {
+	StartTime             *time.Time `json:"start_time"`
+	EndTime               *time.Time `json:"end_time"`
+	Title                 *string    `json:"title"`
+	Description           *string    `json:"description"`
+	EstimatedParticipants *int       `json:"estimated_participants"`
+	IsJoinable            *bool      `json:"is_joinable"`
+}
+
+// UpdateBooking updates a booking (only creator can update)
+func (s *BookingService) UpdateBooking(bookingID, userID uint, req UpdateBookingRequest) (*models.Booking, error) {
+	booking, err := s.bookingRepo.GetByID(bookingID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Проверка прав доступа
+	if booking.CreatorID != userID {
+		return nil, ErrNotAuthorized
+	}
+
+	// Обновляем поля
+	if req.StartTime != nil {
+		booking.StartTime = *req.StartTime
+	}
+	if req.EndTime != nil {
+		booking.EndTime = *req.EndTime
+	}
+	if req.Title != nil {
+		booking.Title = *req.Title
+	}
+	if req.Description != nil {
+		booking.Description = *req.Description
+	}
+	if req.EstimatedParticipants != nil {
+		booking.EstimatedParticipants = *req.EstimatedParticipants
+	}
+	if req.IsJoinable != nil {
+		booking.IsJoinable = *req.IsJoinable
+	}
+
+	// Валидация времени
+	if !booking.EndTime.After(booking.StartTime) {
+		return nil, ErrInvalidTime
+	}
+
+	// Проверка на конфликты (исключая текущее бронирование)
+	hasConflict, err := s.bookingRepo.CheckConflict(booking.RoomID, booking.StartTime, booking.EndTime, &bookingID)
+	if err != nil {
+		return nil, err
+	}
+	if hasConflict {
+		return nil, ErrBookingConflict
+	}
+
+	err = s.bookingRepo.Update(booking)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.bookingRepo.GetByID(bookingID)
+}
+
+// FormatBookingForCalendar formats booking for FullCalendar
+func FormatBookingForCalendar(booking *models.Booking) map[string]interface{} {
+	return map[string]interface{}{
+		"id":          fmt.Sprintf("%d", booking.ID),
+		"title":       booking.Title,
+		"start":       booking.StartTime.Format(time.RFC3339),
+		"end":         booking.EndTime.Format(time.RFC3339),
+		"resourceId":  fmt.Sprintf("%d", booking.RoomID),
+		"extendedProps": map[string]interface{}{
+			"roomName":     booking.Room.Name,
+			"creator":      booking.Creator.Username,
+			"description":  booking.Description,
+			"participants": len(booking.Participants),
+			"isJoinable":   booking.IsJoinable,
+			"status":       booking.Status,
+		},
+	}
+}
