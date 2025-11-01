@@ -2,6 +2,7 @@ package repository
 
 import (
 	"github.com/space/backend/internal/models"
+	"github.com/space/backend/pkg/validator"
 	"gorm.io/gorm"
 )
 
@@ -80,7 +81,9 @@ func (r *UserRepository) GetPhonebook() ([]models.User, error) {
 // Search searches users by name or username
 func (r *UserRepository) Search(query string) ([]models.User, error) {
 	var users []models.User
-	searchPattern := "%" + query + "%"
+	// Экранируем специальные символы LIKE для безопасности
+	escapedQuery := validator.EscapeLike(query)
+	searchPattern := "%" + escapedQuery + "%"
 	err := r.db.Where(
 		"is_in_phone_book = ? AND (first_name ILIKE ? OR last_name ILIKE ? OR username ILIKE ?)",
 		true, searchPattern, searchPattern, searchPattern,

@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/space/backend/internal/handler"
 	"github.com/space/backend/internal/middleware"
@@ -10,14 +12,33 @@ import (
 // SetupRouter configures all routes for the application
 func SetupRouter(
 	botToken string,
+	allowedOrigins []string,
+	environment string,
 	userService *service.UserService,
 	roomService *service.RoomService,
 	bookingService *service.BookingService,
 ) *gin.Engine {
 	r := gin.Default()
 
-	// Global middleware
-	r.Use(middleware.CORS())
+	// Global middleware - безопасность
+	// 1. Security Headers - должны быть первыми
+	r.Use(middleware.SecurityHeaders())
+
+	// 2. HTTPS Enforcement - перенаправление на HTTPS в production
+	r.Use(middleware.HTTPSEnforcement(environment))
+
+	// 3. CORS с ограничением по доменам
+	r.Use(middleware.CORS(allowedOrigins))
+
+	// 4. Rate Limiting - 100 запросов в минуту с одного IP
+	rateLimiter := middleware.NewRateLimiter(100, 1*time.Minute)
+	r.Use(rateLimiter.RateLimit())
+
+	// 5. Логирование подозрительных запросов
+	r.Use(middleware.SecurityLogger(allowedOrigins))
+
+	// 6. Проверка Referer (только для защищённых эндпоинтов)
+	r.Use(middleware.RefererCheck(allowedOrigins))
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {

@@ -18,6 +18,7 @@ type Config struct {
 	Environment      string
 	SupabaseURL      string
 	SupabaseKey      string
+	AllowedOrigins   []string // CORS allowed origins
 }
 
 // Load loads configuration from environment variables
@@ -25,25 +26,31 @@ func Load() (*Config, error) {
 	// Загружаем .env файл (игнорируем ошибку если файла нет)
 	_ = godotenv.Load()
 
+	// JWT Secret validation - критически важно для безопасности
+	jwtSecret := getEnv("JWT_SECRET", "")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required and must not be empty")
+	}
+	if len(jwtSecret) < 32 {
+		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters long for security")
+	}
+
 	config := &Config{
 		ServerPort:       getEnv("SERVER_PORT", "8080"),
 		DatabaseURL:      getEnv("DATABASE_URL", ""),
 		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-		JWTSecret:        getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+		JWTSecret:        jwtSecret,
 		StoragePath:      getEnv("STORAGE_PATH", "./storage"),
 		Environment:      getEnv("ENVIRONMENT", "development"),
 		SupabaseURL:      getEnv("SUPABASE_URL", ""),
 		SupabaseKey:      getEnv("SUPABASE_SECRET_KEY", ""),
+		AllowedOrigins:   parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "")),
 	}
 
 	// Если DATABASE_URL не задан, но есть SUPABASE_URL - строим DATABASE_URL из Supabase
 	if config.DatabaseURL == "" && config.SupabaseURL != "" {
 		config.DatabaseURL = buildSupabaseDatabaseURL(config.SupabaseURL)
-		// Вывод для отладки (скрываем пароль)
-		if config.Environment == "development" {
-			maskedURL := maskPassword(config.DatabaseURL)
-			fmt.Printf("📊 Built DATABASE_URL from SUPABASE_URL: %s\n", maskedURL)
-		}
+		// Не выводим DATABASE_URL даже в development режиме из соображений безопасности
 	}
 
 	// Валидация обязательных параметров
@@ -111,4 +118,29 @@ func maskPassword(connStr string) string {
 	}
 
 	return "postgresql://postgres:***@" + afterUser[atIndex+1:]
+}
+
+// parseAllowedOrigins парсит строку разрешённых origins, разделённых запятыми
+func parseAllowedOrigins(originsStr string) []string {
+	if originsStr == "" {
+		// Дефолтные origins для разработки
+		return []string{
+			"http://localhost:5173",
+			"http://localhost:5174",
+			"http://localhost:3000",
+			"https://telegram.org",
+		}
+	}
+
+	// Разбиваем по запятой и убираем пробелы
+	origins := strings.Split(originsStr, ",")
+	result := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		trimmed := strings.TrimSpace(origin)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	return result
 }

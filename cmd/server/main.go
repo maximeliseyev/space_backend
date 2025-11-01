@@ -53,6 +53,8 @@ func main() {
 	// Настраиваем роутер
 	r := router.SetupRouter(
 		cfg.TelegramBotToken,
+		cfg.AllowedOrigins,
+		cfg.Environment,
 		userService,
 		roomService,
 		bookingService,
