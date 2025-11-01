@@ -27,6 +27,7 @@ go.work
 *.swp
 *.swo
 *~
+_*/
 
 # OS
 .DS_Store
