@@ -42,9 +42,35 @@ func (r *UserRepository) GetByTelegramID(telegramID int64) (*models.User, error)
 }
 
 // GetOrCreate gets a user by Telegram ID or creates a new one
-func (r *UserRepository) GetOrCreate(telegramID int64, username string) (*models.User, error) {
+func (r *UserRepository) GetOrCreate(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error) {
 	user, err := r.GetByTelegramID(telegramID)
 	if err == nil {
+		// Пользователь существует - обновляем его данные
+		updated := false
+		if user.Username != username {
+			user.Username = username
+			updated = true
+		}
+		if user.FirstName != firstName {
+			user.FirstName = firstName
+			updated = true
+		}
+		if user.LastName != lastName {
+			user.LastName = lastName
+			updated = true
+		}
+		if user.LanguageCode != languageCode {
+			user.LanguageCode = languageCode
+			updated = true
+		}
+
+		// Сохраняем изменения если что-то изменилось
+		if updated {
+			if err := r.Update(user); err != nil {
+				return nil, err
+			}
+		}
+
 		return user, nil
 	}
 
@@ -54,8 +80,11 @@ func (r *UserRepository) GetOrCreate(telegramID int64, username string) (*models
 
 	// Create new user
 	user = &models.User{
-		TelegramID: telegramID,
-		Username:   username,
+		TelegramID:   telegramID,
+		Username:     username,
+		FirstName:    firstName,
+		LastName:     lastName,
+		LanguageCode: languageCode,
 	}
 
 	err = r.Create(user)

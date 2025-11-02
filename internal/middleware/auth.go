@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/space/backend/internal/service"
@@ -26,35 +25,39 @@ func TelegramAuthMiddleware(botToken string, userService *service.UserService) g
 			return
 		}
 
-		// Валидируем initData
-		err := telegram.ValidateInitData(initData, botToken)
+		// Development mode - пропускаем валидацию
+		if initData == "dev_mode" {
+			// Создаем тестового пользователя для разработки
+			user, err := userService.SyncTelegramUser(12345, "devuser", "Dev", "User", "en")
+			if err != nil {
+				response.InternalServerError(c, err)
+				c.Abort()
+				return
+			}
+
+			// Сохраняем пользователя в контекст
+			c.Set("userID", user.ID)
+			c.Set("user", user)
+			c.Next()
+			return
+		}
+
+		// Production mode - валидируем и парсим initData
+		telegramUser, err := telegram.ValidateAndParseInitData(initData, botToken)
 		if err != nil {
 			response.Unauthorized(c, err)
 			c.Abort()
 			return
 		}
 
-		// Извлекаем Telegram ID из query параметров initData
-		// В реальном initData это будет JSON объект user
-		// Для упрощения можем передавать telegram_id отдельно
-		telegramIDStr := c.GetHeader("X-Telegram-User-ID")
-		if telegramIDStr == "" {
-			response.Unauthorized(c, errors.New("missing telegram user ID"))
-			c.Abort()
-			return
-		}
-
-		telegramID, err := strconv.ParseInt(telegramIDStr, 10, 64)
-		if err != nil {
-			response.Unauthorized(c, errors.New("invalid telegram user ID"))
-			c.Abort()
-			return
-		}
-
-		username := c.GetHeader("X-Telegram-Username")
-
-		// Получаем или создаем пользователя
-		user, err := userService.SyncTelegramUser(telegramID, username)
+		// Получаем или создаем пользователя с полными данными из Telegram
+		user, err := userService.SyncTelegramUser(
+			telegramUser.ID,
+			telegramUser.Username,
+			telegramUser.FirstName,
+			telegramUser.LastName,
+			telegramUser.LanguageCode,
+		)
 		if err != nil {
 			response.InternalServerError(c, err)
 			c.Abort()

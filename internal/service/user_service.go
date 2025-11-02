@@ -16,8 +16,8 @@ func NewUserService(userRepo *repository.UserRepository) *UserService {
 }
 
 // SyncTelegramUser syncs a user from Telegram (get or create)
-func (s *UserService) SyncTelegramUser(telegramID int64, username string) (*models.User, error) {
-	return s.userRepo.GetOrCreate(telegramID, username)
+func (s *UserService) SyncTelegramUser(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error) {
+	return s.userRepo.GetOrCreate(telegramID, username, firstName, lastName, languageCode)
 }
 
 // GetUser gets a user by ID

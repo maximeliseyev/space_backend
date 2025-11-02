@@ -8,12 +8,13 @@ import (
 
 // User represents a user in the system
 type User struct {
-	ID          uint           `gorm:"primaryKey" json:"id"`
-	TelegramID  int64          `gorm:"uniqueIndex;not null" json:"telegram_id"`
-	Username    string         `gorm:"index" json:"username"`
-	FirstName   string         `json:"first_name,omitempty"`
-	LastName    string         `json:"last_name,omitempty"`
-	PhoneNumber string         `gorm:"index" json:"phone_number,omitempty"`
+	ID           uint           `gorm:"primaryKey" json:"id"`
+	TelegramID   int64          `gorm:"uniqueIndex;not null" json:"telegram_id"`
+	Username     string         `gorm:"index" json:"username"`
+	FirstName    string         `json:"first_name,omitempty"`
+	LastName     string         `json:"last_name,omitempty"`
+	PhoneNumber  string         `gorm:"index" json:"phone_number,omitempty"`
+	LanguageCode string         `json:"language_code,omitempty"`
 
 	// Телефонная книга - пользователь показывается только если заполнены имя/фамилия и телефон
 	IsInPhoneBook bool `gorm:"default:false" json:"is_in_phonebook"`
@@ -23,7 +24,7 @@ type User struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Связи
-	Bookings      []Booking      `gorm:"foreignKey:CreatorID" json:"bookings,omitempty"`
+	Bookings             []Booking `gorm:"foreignKey:CreatorID" json:"bookings,omitempty"`
 	ParticipatedBookings []Booking `gorm:"many2many:booking_participants;" json:"-"`
 }
 

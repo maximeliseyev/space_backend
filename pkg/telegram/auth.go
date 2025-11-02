@@ -4,26 +4,32 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var (
 	ErrInvalidHash     = errors.New("invalid hash")
 	ErrMissingHash     = errors.New("missing hash parameter")
 	ErrMissingUserData = errors.New("missing user data")
+	ErrAuthDateExpired = errors.New("auth_date expired (older than 1 hour)")
+	ErrInvalidAuthDate = errors.New("invalid auth_date")
 )
 
 // TelegramUser represents Telegram user data from initData
 type TelegramUser struct {
-	ID        int64  `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name,omitempty"`
-	Username  string `json:"username,omitempty"`
-	PhotoURL  string `json:"photo_url,omitempty"`
+	ID           int64  `json:"id"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name,omitempty"`
+	Username     string `json:"username,omitempty"`
+	PhotoURL     string `json:"photo_url,omitempty"`
+	LanguageCode string `json:"language_code,omitempty"`
 }
 
 // ValidateInitData validates Telegram Mini App initData
@@ -45,6 +51,23 @@ func ValidateInitData(initData string, botToken string) error {
 		return ErrMissingHash
 	}
 	values.Del("hash")
+
+	// Проверяем auth_date (срок действия 1 час)
+	authDateStr := values.Get("auth_date")
+	if authDateStr == "" {
+		return ErrInvalidAuthDate
+	}
+
+	authDate, err := strconv.ParseInt(authDateStr, 10, 64)
+	if err != nil {
+		return ErrInvalidAuthDate
+	}
+
+	// Проверяем, что auth_date не старше 1 часа (3600 секунд)
+	now := time.Now().Unix()
+	if now-authDate > 3600 {
+		return ErrAuthDateExpired
+	}
 
 	// Create data-check-string
 	var keys []string
@@ -83,17 +106,34 @@ func ParseUserFromInitData(initData string) (*TelegramUser, error) {
 		return nil, fmt.Errorf("failed to parse initData: %w", err)
 	}
 
-	// В реальном initData от Telegram пользователь передается как JSON в параметре "user"
-	// Для упрощения можем использовать отдельные поля
+	// Получаем JSON объект user из параметра (он URL-encoded)
 	userJSON := values.Get("user")
 	if userJSON == "" {
 		return nil, ErrMissingUserData
 	}
 
-	// TODO: Здесь нужно распарсить JSON пользователя
-	// Для простоты используем прямые поля (это нужно будет доработать)
+	// Декодируем URL-encoded JSON и парсим
+	var user TelegramUser
+	if err := json.Unmarshal([]byte(userJSON), &user); err != nil {
+		return nil, fmt.Errorf("failed to parse user JSON: %w", err)
+	}
 
-	return &TelegramUser{
-		// Временная заглушка - в реальности парсить из JSON
-	}, nil
+	return &user, nil
+}
+
+// ValidateAndParseInitData validates initData and returns user data
+// Это комбинированная функция для удобства
+func ValidateAndParseInitData(initData string, botToken string) (*TelegramUser, error) {
+	// Сначала валидируем
+	if err := ValidateInitData(initData, botToken); err != nil {
+		return nil, err
+	}
+
+	// Затем парсим данные пользователя
+	user, err := ParseUserFromInitData(initData)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
