@@ -5,12 +5,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/space/backend/internal/config"
 	"github.com/space/backend/internal/database"
 	"github.com/space/backend/internal/repository"
 	"github.com/space/backend/internal/router"
 	"github.com/space/backend/internal/service"
+	"github.com/space/backend/pkg/telegram"
 )
 
 func main() {
@@ -21,6 +23,10 @@ func main() {
 	}
 
 	log.Printf("Starting Space Backend API in %s mode...", cfg.Environment)
+
+	// Запускаем фоновую очистку кэша членства в группе каждые 10 минут
+	telegram.GlobalCache.StartCleanupRoutine(10 * time.Minute)
+	log.Println("Membership cache cleanup routine started")
 
 	// Подключаемся к базе данных
 	debugMode := cfg.Environment == "development"
@@ -53,6 +59,7 @@ func main() {
 	// Настраиваем роутер
 	r := router.SetupRouter(
 		cfg.TelegramBotToken,
+		cfg.AllowedChatID,
 		cfg.AllowedOrigins,
 		cfg.Environment,
 		userService,

@@ -2,8 +2,11 @@ package middleware
 
 import (
 	"errors"
+	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/space/backend/internal/models"
 	"github.com/space/backend/internal/service"
 	"github.com/space/backend/pkg/response"
 	"github.com/space/backend/pkg/telegram"
@@ -68,6 +71,85 @@ func TelegramAuthMiddleware(botToken string, userService *service.UserService) g
 		c.Set("userID", user.ID)
 		c.Set("user", user)
 
+		c.Next()
+	}
+}
+
+// RequireChatMembership проверяет, что пользователь является участником разрешенной группы
+func RequireChatMembership(botToken string, allowedChatID int64, environment string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// В development режиме без настроенного ALLOWED_CHAT_ID пропускаем проверку
+		if allowedChatID == 0 {
+			if environment != "production" {
+				log.Println("WARNING: ALLOWED_CHAT_ID not set, skipping membership check in development mode")
+				c.Next()
+				return
+			}
+			// В production требуем настройку
+			response.InternalServerError(c, errors.New("server configuration error: ALLOWED_CHAT_ID not configured"))
+			c.Abort()
+			return
+		}
+
+		// Получаем user из контекста (должен быть установлен предыдущим middleware)
+		userInterface, exists := c.Get("user")
+		if !exists {
+			response.Unauthorized(c, errors.New("user not authenticated"))
+			c.Abort()
+			return
+		}
+
+		// Приводим к типу модели User
+		userModel, ok := userInterface.(*models.User)
+		if !ok {
+			response.InternalServerError(c, errors.New("invalid user data type"))
+			c.Abort()
+			return
+		}
+
+		telegramUserID := userModel.TelegramID
+
+		// Проверяем кэш сначала (TTL 5 минут)
+		if isMember, cached := telegram.GlobalCache.Get(telegramUserID); cached {
+			if !isMember {
+				log.Printf("INFO: User %d denied access - not a group member (cached)", telegramUserID)
+				response.Forbidden(c, errors.New("access denied. You must be a member of the authorized group"))
+				c.Abort()
+				return
+			}
+			// Пользователь в кэше и является участником
+			c.Next()
+			return
+		}
+
+		// Проверяем членство через API
+		isMember, err := telegram.CheckUserInChat(telegramUserID, allowedChatID, botToken)
+		if err != nil {
+			log.Printf("ERROR: Failed to check membership for user %d: %v", telegramUserID, err)
+
+			// В production блокируем при ошибке проверки
+			if environment == "production" {
+				response.InternalServerError(c, errors.New("failed to verify membership"))
+				c.Abort()
+				return
+			}
+			// В dev разрешаем
+			log.Println("WARNING: Membership check failed in development mode, allowing access")
+			c.Next()
+			return
+		}
+
+		// Сохраняем результат в кэш (5 минут)
+		telegram.GlobalCache.Set(telegramUserID, isMember, 5*time.Minute)
+
+		if !isMember {
+			log.Printf("INFO: User %d denied access - not a group member", telegramUserID)
+			response.Forbidden(c, errors.New("access denied. You must be a member of the authorized group"))
+			c.Abort()
+			return
+		}
+
+		log.Printf("INFO: User %d authorized - group member", telegramUserID)
 		c.Next()
 	}
 }

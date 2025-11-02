@@ -12,6 +12,7 @@ import (
 // SetupRouter configures all routes for the application
 func SetupRouter(
 	botToken string,
+	allowedChatID int64,
 	allowedOrigins []string,
 	environment string,
 	userService *service.UserService,
@@ -59,9 +60,10 @@ func SetupRouter(
 		public.GET("/rooms/:id", roomHandler.GetRoom)
 	}
 
-	// Protected routes (require Telegram auth)
+	// Protected routes (require Telegram auth and group membership)
 	protected := api.Group("")
 	protected.Use(middleware.TelegramAuthMiddleware(botToken, userService))
+	protected.Use(middleware.RequireChatMembership(botToken, allowedChatID, environment))
 	{
 		// User routes
 		userHandler := handler.NewUserHandler(userService)

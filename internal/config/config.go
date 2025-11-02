@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -13,6 +14,7 @@ type Config struct {
 	ServerPort       string
 	DatabaseURL      string
 	TelegramBotToken string
+	AllowedChatID    int64    // Telegram group chat ID for membership check
 	JWTSecret        string
 	StoragePath      string
 	Environment      string
@@ -35,10 +37,19 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters long for security")
 	}
 
+	// Parse AllowedChatID
+	allowedChatID := int64(0)
+	if chatIDStr := getEnv("ALLOWED_CHAT_ID", ""); chatIDStr != "" {
+		if parsed, err := strconv.ParseInt(chatIDStr, 10, 64); err == nil {
+			allowedChatID = parsed
+		}
+	}
+
 	config := &Config{
 		ServerPort:       getEnv("SERVER_PORT", "8080"),
 		DatabaseURL:      getEnv("DATABASE_URL", ""),
 		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+		AllowedChatID:    allowedChatID,
 		JWTSecret:        jwtSecret,
 		StoragePath:      getEnv("STORAGE_PATH", "./storage"),
 		Environment:      getEnv("ENVIRONMENT", "development"),
