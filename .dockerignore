@@ -20,6 +20,11 @@ tmp/
 temp/
 *.tmp
 
+# Ignore build artifacts
+space_backend
+main
+*.exe
+
 # Ignore IDE
 .vscode/
 .idea/
