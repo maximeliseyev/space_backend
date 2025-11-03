@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"log"
+
 	"github.com/space/backend/internal/models"
 	"github.com/space/backend/pkg/validator"
 	"gorm.io/gorm"
@@ -42,35 +44,13 @@ func (r *UserRepository) GetByTelegramID(telegramID int64) (*models.User, error)
 }
 
 // GetOrCreate gets a user by Telegram ID or creates a new one
+// NOTE: This method does NOT update existing users. Use SyncFromTelegram() for that.
 func (r *UserRepository) GetOrCreate(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error) {
 	user, err := r.GetByTelegramID(telegramID)
 	if err == nil {
-		// Пользователь существует - обновляем его данные
-		updated := false
-		if user.Username != username {
-			user.Username = username
-			updated = true
-		}
-		if user.FirstName != firstName {
-			user.FirstName = firstName
-			updated = true
-		}
-		if user.LastName != lastName {
-			user.LastName = lastName
-			updated = true
-		}
-		if user.LanguageCode != languageCode {
-			user.LanguageCode = languageCode
-			updated = true
-		}
-
-		// Сохраняем изменения если что-то изменилось
-		if updated {
-			if err := r.Update(user); err != nil {
-				return nil, err
-			}
-		}
-
+		// Пользователь существует - возвращаем без изменений
+		// Данные пользователя могут быть отредактированы вручную, не перезаписываем их
+		log.Printf("DEBUG: Found existing user (ID: %d, TelegramID: %d) - keeping user-managed data", user.ID, user.TelegramID)
 		return user, nil
 	}
 
@@ -78,18 +58,66 @@ func (r *UserRepository) GetOrCreate(telegramID int64, username, firstName, last
 		return nil, err
 	}
 
-	// Create new user
+	// Создаём нового пользователя с данными из Telegram
+	log.Printf("DEBUG: Creating NEW user (TelegramID: %d, username: %s)", telegramID, username)
+
 	user = &models.User{
 		TelegramID:   telegramID,
 		Username:     username,
 		FirstName:    firstName,
 		LastName:     lastName,
 		LanguageCode: languageCode,
+		Role:         models.RoleUser, // По умолчанию обычный пользователь (админ назначается вручную через SQL)
 	}
 
 	err = r.Create(user)
 	if err != nil {
 		return nil, err
+	}
+
+	log.Printf("DEBUG: Created user with ID: %d, Role: %s", user.ID, user.Role)
+	return user, nil
+}
+
+// SyncFromTelegram explicitly updates user data from Telegram
+// Use this when you want to sync user's Telegram profile changes
+func (r *UserRepository) SyncFromTelegram(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error) {
+	user, err := r.GetByTelegramID(telegramID)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("DEBUG: Syncing user ID %d from Telegram", user.ID)
+	updated := false
+
+	if user.Username != username {
+		log.Printf("DEBUG: Username changed: '%s' -> '%s'", user.Username, username)
+		user.Username = username
+		updated = true
+	}
+	if user.FirstName != firstName {
+		log.Printf("DEBUG: FirstName changed: '%s' -> '%s'", user.FirstName, firstName)
+		user.FirstName = firstName
+		updated = true
+	}
+	if user.LastName != lastName {
+		log.Printf("DEBUG: LastName changed: '%s' -> '%s'", user.LastName, lastName)
+		user.LastName = lastName
+		updated = true
+	}
+	if user.LanguageCode != languageCode {
+		log.Printf("DEBUG: LanguageCode changed: '%s' -> '%s'", user.LanguageCode, languageCode)
+		user.LanguageCode = languageCode
+		updated = true
+	}
+
+	if updated {
+		log.Printf("DEBUG: Updating user ID %d with Telegram data", user.ID)
+		if err := r.Update(user); err != nil {
+			return nil, err
+		}
+	} else {
+		log.Printf("DEBUG: No changes for user ID %d", user.ID)
 	}
 
 	return user, nil

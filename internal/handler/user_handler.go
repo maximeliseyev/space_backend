@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"errors"
+
 	"github.com/gin-gonic/gin"
+	"github.com/space/backend/internal/models"
 	"github.com/space/backend/internal/service"
 	"github.com/space/backend/pkg/response"
+	"github.com/space/backend/pkg/telegram"
 )
 
 // UserHandler handles user-related HTTP requests
@@ -85,4 +89,54 @@ func (h *UserHandler) GetPhonebook(c *gin.Context) {
 	}
 
 	response.Success(c, users)
+}
+
+// SyncFromTelegram godoc
+// @Summary Sync user profile from Telegram
+// @Description Updates user's profile with current data from Telegram (name, username, etc.)
+// @Description User must provide fresh Telegram initData in X-Telegram-Init-Data header
+// @Tags users
+// @Produce json
+// @Success 200 {object} models.User
+// @Router /api/users/me/sync-telegram [post]
+func (h *UserHandler) SyncFromTelegram(c *gin.Context) {
+	// Получаем текущего пользователя из контекста
+	userInterface, exists := c.Get("user")
+	if !exists {
+		response.Unauthorized(c, service.ErrNotAuthorized)
+		return
+	}
+
+	user := userInterface.(*models.User)
+
+	// Получаем данные из Telegram, которые пришли в текущем запросе
+	// Middleware уже валидировал initData и извлек telegramUser
+	telegramUserInterface, exists := c.Get("telegramUser")
+	if !exists {
+		response.BadRequest(c, errors.New("telegram user data not found in request context"))
+		return
+	}
+
+	telegramUser := telegramUserInterface.(*telegram.TelegramUser)
+
+	// Синхронизируем данные из Telegram
+	updatedUser, err := h.userService.SyncUserFromTelegram(
+		telegramUser.ID,
+		telegramUser.Username,
+		telegramUser.FirstName,
+		telegramUser.LastName,
+		telegramUser.LanguageCode,
+	)
+	if err != nil {
+		response.InternalServerError(c, err)
+		return
+	}
+
+	// Проверяем, что это тот же пользователь
+	if updatedUser.ID != user.ID {
+		response.BadRequest(c, errors.New("cannot sync different user's data"))
+		return
+	}
+
+	response.Success(c, updatedUser)
 }

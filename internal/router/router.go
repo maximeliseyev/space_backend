@@ -73,6 +73,7 @@ func SetupRouter(
 		{
 			users.GET("/me", userHandler.GetProfile)
 			users.PATCH("/me", userHandler.UpdateProfile)
+			users.POST("/me/sync-telegram", userHandler.SyncFromTelegram) // Синхронизация данных из Telegram
 			users.GET("/phonebook", userHandler.GetPhonebook)
 		}
 

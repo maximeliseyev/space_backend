@@ -15,6 +15,7 @@ import (
 var (
 	ErrMissingAuthHeader = errors.New("missing authorization header")
 	ErrInvalidAuthHeader = errors.New("invalid authorization header")
+	ErrNotAdmin          = errors.New("admin privileges required")
 )
 
 // TelegramAuthMiddleware validates Telegram Mini App authentication
@@ -87,9 +88,10 @@ func TelegramAuthMiddleware(botToken string, userService *service.UserService, t
 			return
 		}
 
-		// Сохраняем пользователя в контекст
+		// Сохраняем пользователя и данные из Telegram в контекст
 		c.Set("userID", user.ID)
 		c.Set("user", user)
+		c.Set("telegramUser", telegramUser) // Для возможности синхронизации
 
 		c.Next()
 	}
@@ -170,6 +172,39 @@ func RequireChatMembership(botToken string, allowedChatID int64, environment str
 		}
 
 		log.Printf("INFO: User %d authorized - group member", telegramUserID)
+		c.Next()
+	}
+}
+
+// RequireAdmin проверяет, что пользователь имеет роль администратора
+// Этот middleware должен использоваться после TelegramAuthMiddleware
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Получаем user из контекста (должен быть установлен TelegramAuthMiddleware)
+		userInterface, exists := c.Get("user")
+		if !exists {
+			response.Unauthorized(c, errors.New("user not authenticated"))
+			c.Abort()
+			return
+		}
+
+		// Приводим к типу модели User
+		user, ok := userInterface.(*models.User)
+		if !ok {
+			response.InternalServerError(c, errors.New("invalid user data type"))
+			c.Abort()
+			return
+		}
+
+		// Проверяем, является ли пользователь администратором
+		if !user.IsAdmin() {
+			log.Printf("INFO: User %d (TelegramID: %d) denied admin access - not an admin (role: %s)", user.ID, user.TelegramID, user.Role)
+			response.Forbidden(c, ErrNotAdmin)
+			c.Abort()
+			return
+		}
+
+		log.Printf("INFO: User %d (TelegramID: %d) granted admin access", user.ID, user.TelegramID)
 		c.Next()
 	}
 }

@@ -16,8 +16,15 @@ func NewUserService(userRepo *repository.UserRepository) *UserService {
 }
 
 // SyncTelegramUser syncs a user from Telegram (get or create)
+// NOTE: This does NOT update existing users automatically
 func (s *UserService) SyncTelegramUser(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error) {
 	return s.userRepo.GetOrCreate(telegramID, username, firstName, lastName, languageCode)
+}
+
+// SyncUserFromTelegram explicitly updates user data from Telegram
+// Use this when user wants to sync their Telegram profile changes
+func (s *UserService) SyncUserFromTelegram(telegramID int64, username, firstName, lastName, languageCode string) (*models.User, error) {
+	return s.userRepo.SyncFromTelegram(telegramID, username, firstName, lastName, languageCode)
 }
 
 // GetUser gets a user by ID

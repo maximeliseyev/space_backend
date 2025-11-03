@@ -6,6 +6,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserRole represents user role in the system
+type UserRole string
+
+const (
+	RoleUser  UserRole = "user"  // Обычный пользователь
+	RoleAdmin UserRole = "admin" // Администратор системы
+)
+
 // User represents a user in the system
 type User struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
@@ -15,6 +23,7 @@ type User struct {
 	LastName     string         `json:"last_name,omitempty"`
 	PhoneNumber  string         `gorm:"index" json:"phone_number,omitempty"`
 	LanguageCode string         `json:"language_code,omitempty"`
+	Role         UserRole       `gorm:"type:varchar(20);default:'user';not null" json:"role"`
 
 	// Телефонная книга - пользователь показывается только если заполнены имя/фамилия и телефон
 	IsInPhoneBook bool `gorm:"default:false" json:"is_in_phonebook"`
@@ -26,6 +35,11 @@ type User struct {
 	// Связи
 	Bookings             []Booking `gorm:"foreignKey:CreatorID" json:"bookings,omitempty"`
 	ParticipatedBookings []Booking `gorm:"many2many:booking_participants;" json:"-"`
+}
+
+// IsAdmin checks if user has admin role
+func (u *User) IsAdmin() bool {
+	return u.Role == RoleAdmin
 }
 
 // BeforeSave hook для автоматической установки флага IsInPhoneBook
