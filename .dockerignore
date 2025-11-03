@@ -11,6 +11,7 @@
 # Ignore docs
 *.md
 docs/
+_docs/
 
 # Ignore old project
 _oldproject/
@@ -24,6 +25,11 @@ temp/
 space_backend
 main
 *.exe
+bin/
+build/
+
+# Ignore Claude and other tools
+.claude/
 
 # Ignore IDE
 .vscode/
