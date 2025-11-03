@@ -45,13 +45,33 @@ func TelegramAuthMiddleware(botToken string, userService *service.UserService) g
 			return
 		}
 
-		// Production mode - валидируем и парсим initData
-		telegramUser, err := telegram.ValidateAndParseInitData(initData, botToken)
+		// Production mode - определяем тип авторизации и валидируем
+		authType := telegram.DetectAuthType(initData)
+		var telegramUser *telegram.TelegramUser
+		var err error
+
+		switch authType {
+		case "miniapp":
+			// Telegram Mini App
+			telegramUser, err = telegram.ValidateAndParseInitData(initData, botToken)
+		case "loginwidget":
+			// Telegram Login Widget (веб-авторизация)
+			telegramUser, err = telegram.ValidateAndParseLoginWidget(initData, botToken)
+		default:
+			log.Printf("Unknown auth type for initData: %s", initData)
+			response.Unauthorized(c, errors.New("unknown auth type"))
+			c.Abort()
+			return
+		}
+
 		if err != nil {
+			log.Printf("Auth validation error (%s): %v", authType, err)
 			response.Unauthorized(c, err)
 			c.Abort()
 			return
 		}
+
+		log.Printf("Successful %s authentication for user %d", authType, telegramUser.ID)
 
 		// Получаем или создаем пользователя с полными данными из Telegram
 		user, err := userService.SyncTelegramUser(
