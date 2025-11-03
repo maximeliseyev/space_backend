@@ -15,6 +15,8 @@ func SetupRouter(
 	allowedChatID int64,
 	allowedOrigins []string,
 	environment string,
+	authDateTTLMiniApp int64,
+	authDateTTLLoginWidget int64,
 	userService *service.UserService,
 	roomService *service.RoomService,
 	bookingService *service.BookingService,
@@ -62,7 +64,7 @@ func SetupRouter(
 
 	// Protected routes (require Telegram auth and group membership)
 	protected := api.Group("")
-	protected.Use(middleware.TelegramAuthMiddleware(botToken, userService))
+	protected.Use(middleware.TelegramAuthMiddleware(botToken, userService, authDateTTLMiniApp, authDateTTLLoginWidget))
 	protected.Use(middleware.RequireChatMembership(botToken, allowedChatID, environment))
 	{
 		// User routes

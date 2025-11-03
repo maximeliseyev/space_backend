@@ -62,6 +62,8 @@ func main() {
 		cfg.AllowedChatID,
 		cfg.AllowedOrigins,
 		cfg.Environment,
+		cfg.AuthDateTTLMiniApp,
+		cfg.AuthDateTTLLoginWidget,
 		userService,
 		roomService,
 		bookingService,

@@ -58,14 +58,14 @@ func TestValidateInitData_Success(t *testing.T) {
 	botToken := "test_bot_token_123456"
 	initData := createValidInitData(botToken)
 
-	err := ValidateInitData(initData, botToken)
+	err := ValidateInitData(initData, botToken, 3600) // 1 hour TTL
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
 }
 
 func TestValidateInitData_EmptyInitData(t *testing.T) {
-	err := ValidateInitData("", "test_token")
+	err := ValidateInitData("", "test_token", 3600)
 	if err == nil {
 		t.Error("Expected error for empty initData")
 	}
@@ -73,7 +73,7 @@ func TestValidateInitData_EmptyInitData(t *testing.T) {
 
 func TestValidateInitData_MissingHash(t *testing.T) {
 	initData := "auth_date=1234567890&user={}"
-	err := ValidateInitData(initData, "test_token")
+	err := ValidateInitData(initData, "test_token", 3600)
 	if err != ErrMissingHash {
 		t.Errorf("Expected ErrMissingHash, got: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestValidateInitData_MissingHash(t *testing.T) {
 func TestValidateInitData_InvalidHash(t *testing.T) {
 	authDate := time.Now().Unix()
 	initData := fmt.Sprintf("auth_date=%d&user={}&hash=invalid", authDate)
-	err := ValidateInitData(initData, "test_token")
+	err := ValidateInitData(initData, "test_token", 3600)
 	if err != ErrInvalidHash {
 		t.Errorf("Expected ErrInvalidHash, got: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestValidateInitData_ExpiredAuthDate(t *testing.T) {
 
 	initData := values.Encode()
 
-	err := ValidateInitData(initData, botToken)
+	err := ValidateInitData(initData, botToken, 3600) // 1 hour TTL
 	if err != ErrAuthDateExpired {
 		t.Errorf("Expected ErrAuthDateExpired, got: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestValidateAndParseInitData_Success(t *testing.T) {
 	botToken := "test_bot_token_123456"
 	initData := createValidInitData(botToken)
 
-	user, err := ValidateAndParseInitData(initData, botToken)
+	user, err := ValidateAndParseInitData(initData, botToken, 3600) // 1 hour TTL
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestValidateAndParseInitData_Success(t *testing.T) {
 func TestValidateAndParseInitData_InvalidHash(t *testing.T) {
 	authDate := time.Now().Unix()
 	initData := fmt.Sprintf("auth_date=%d&user={}&hash=invalid", authDate)
-	_, err := ValidateAndParseInitData(initData, "test_token")
+	_, err := ValidateAndParseInitData(initData, "test_token", 3600)
 	if err != ErrInvalidHash {
 		t.Errorf("Expected ErrInvalidHash, got: %v", err)
 	}

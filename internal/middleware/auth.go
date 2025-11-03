@@ -18,7 +18,7 @@ var (
 )
 
 // TelegramAuthMiddleware validates Telegram Mini App authentication
-func TelegramAuthMiddleware(botToken string, userService *service.UserService) gin.HandlerFunc {
+func TelegramAuthMiddleware(botToken string, userService *service.UserService, ttlMiniApp int64, ttlLoginWidget int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Получаем initData из заголовка
 		initData := c.GetHeader("X-Telegram-Init-Data")
@@ -53,10 +53,10 @@ func TelegramAuthMiddleware(botToken string, userService *service.UserService) g
 		switch authType {
 		case "miniapp":
 			// Telegram Mini App
-			telegramUser, err = telegram.ValidateAndParseInitData(initData, botToken)
+			telegramUser, err = telegram.ValidateAndParseInitData(initData, botToken, ttlMiniApp)
 		case "loginwidget":
 			// Telegram Login Widget (веб-авторизация)
-			telegramUser, err = telegram.ValidateAndParseLoginWidget(initData, botToken)
+			telegramUser, err = telegram.ValidateAndParseLoginWidget(initData, botToken, ttlLoginWidget)
 		default:
 			log.Printf("Unknown auth type for initData: %s", initData)
 			response.Unauthorized(c, errors.New("unknown auth type"))

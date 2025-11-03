@@ -14,7 +14,8 @@ import (
 
 // ValidateLoginWidget validates Telegram Login Widget data
 // See: https://core.telegram.org/widgets/login#checking-authorization
-func ValidateLoginWidget(initData string, botToken string) error {
+// ttl - time to live for auth_date in seconds (e.g., 604800 for 7 days)
+func ValidateLoginWidget(initData string, botToken string, ttl int64) error {
 	if initData == "" {
 		return fmt.Errorf("initData is empty")
 	}
@@ -43,9 +44,9 @@ func ValidateLoginWidget(initData string, botToken string) error {
 		return ErrInvalidAuthDate
 	}
 
-	// Проверяем, что auth_date не старше 24 часов
+	// Проверяем, что auth_date не старше установленного TTL
 	now := time.Now().Unix()
-	if now-authDate > 86400 {
+	if now-authDate > ttl {
 		return ErrAuthDateExpired
 	}
 
@@ -111,9 +112,10 @@ func ParseUserFromLoginWidget(initData string) (*TelegramUser, error) {
 }
 
 // ValidateAndParseLoginWidget validates Login Widget data and returns user data
-func ValidateAndParseLoginWidget(initData string, botToken string) (*TelegramUser, error) {
+// ttl - time to live for auth_date in seconds (e.g., 604800 for 7 days)
+func ValidateAndParseLoginWidget(initData string, botToken string, ttl int64) (*TelegramUser, error) {
 	// Сначала валидируем
-	if err := ValidateLoginWidget(initData, botToken); err != nil {
+	if err := ValidateLoginWidget(initData, botToken, ttl); err != nil {
 		return nil, err
 	}
 

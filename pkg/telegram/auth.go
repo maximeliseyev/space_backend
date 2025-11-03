@@ -34,7 +34,8 @@ type TelegramUser struct {
 
 // ValidateInitData validates Telegram Mini App initData
 // See: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
-func ValidateInitData(initData string, botToken string) error {
+// ttl - time to live for auth_date in seconds (e.g., 3600 for 1 hour)
+func ValidateInitData(initData string, botToken string, ttl int64) error {
 	if initData == "" {
 		return errors.New("initData is empty")
 	}
@@ -63,9 +64,9 @@ func ValidateInitData(initData string, botToken string) error {
 		return ErrInvalidAuthDate
 	}
 
-	// Проверяем, что auth_date не старше 1 часа (3600 секунд)
+	// Проверяем, что auth_date не старше установленного TTL
 	now := time.Now().Unix()
-	if now-authDate > 3600 {
+	if now-authDate > ttl {
 		return ErrAuthDateExpired
 	}
 
@@ -123,9 +124,10 @@ func ParseUserFromInitData(initData string) (*TelegramUser, error) {
 
 // ValidateAndParseInitData validates initData and returns user data
 // Это комбинированная функция для удобства
-func ValidateAndParseInitData(initData string, botToken string) (*TelegramUser, error) {
+// ttl - time to live for auth_date in seconds (e.g., 3600 for 1 hour)
+func ValidateAndParseInitData(initData string, botToken string, ttl int64) (*TelegramUser, error) {
 	// Сначала валидируем
-	if err := ValidateInitData(initData, botToken); err != nil {
+	if err := ValidateInitData(initData, botToken, ttl); err != nil {
 		return nil, err
 	}
 

@@ -11,16 +11,18 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	ServerPort       string
-	DatabaseURL      string
-	TelegramBotToken string
-	AllowedChatID    int64    // Telegram group chat ID for membership check
-	JWTSecret        string
-	StoragePath      string
-	Environment      string
-	SupabaseURL      string
-	SupabaseKey      string
-	AllowedOrigins   []string // CORS allowed origins
+	ServerPort           string
+	DatabaseURL          string
+	TelegramBotToken     string
+	AllowedChatID        int64    // Telegram group chat ID for membership check
+	JWTSecret            string
+	StoragePath          string
+	Environment          string
+	SupabaseURL          string
+	SupabaseKey          string
+	AllowedOrigins       []string // CORS allowed origins
+	AuthDateTTLMiniApp   int64    // TTL for Mini App auth_date in seconds (default: 3600 = 1 hour)
+	AuthDateTTLLoginWidget int64  // TTL for Login Widget auth_date in seconds (default: 604800 = 7 days)
 }
 
 // Load loads configuration from environment variables
@@ -45,17 +47,23 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Parse Auth Date TTL values
+	authDateTTLMiniApp := parseInt64WithDefault(getEnv("AUTH_DATE_TTL_MINIAPP", ""), 3600) // 1 hour default
+	authDateTTLLoginWidget := parseInt64WithDefault(getEnv("AUTH_DATE_TTL_LOGIN_WIDGET", ""), 604800) // 7 days default
+
 	config := &Config{
-		ServerPort:       getEnv("SERVER_PORT", "8080"),
-		DatabaseURL:      getEnv("DATABASE_URL", ""),
-		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-		AllowedChatID:    allowedChatID,
-		JWTSecret:        jwtSecret,
-		StoragePath:      getEnv("STORAGE_PATH", "./storage"),
-		Environment:      getEnv("ENVIRONMENT", "development"),
-		SupabaseURL:      getEnv("SUPABASE_URL", ""),
-		SupabaseKey:      getEnv("SUPABASE_SECRET_KEY", ""),
-		AllowedOrigins:   parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "")),
+		ServerPort:           getEnv("SERVER_PORT", "8080"),
+		DatabaseURL:          getEnv("DATABASE_URL", ""),
+		TelegramBotToken:     getEnv("TELEGRAM_BOT_TOKEN", ""),
+		AllowedChatID:        allowedChatID,
+		JWTSecret:            jwtSecret,
+		StoragePath:          getEnv("STORAGE_PATH", "./storage"),
+		Environment:          getEnv("ENVIRONMENT", "development"),
+		SupabaseURL:          getEnv("SUPABASE_URL", ""),
+		SupabaseKey:          getEnv("SUPABASE_SECRET_KEY", ""),
+		AllowedOrigins:       parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "")),
+		AuthDateTTLMiniApp:   authDateTTLMiniApp,
+		AuthDateTTLLoginWidget: authDateTTLLoginWidget,
 	}
 
 	// Если DATABASE_URL не задан, но есть SUPABASE_URL - строим DATABASE_URL из Supabase
@@ -112,6 +120,18 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// parseInt64WithDefault parses string to int64 or returns default value
+func parseInt64WithDefault(value string, defaultValue int64) int64 {
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
 }
 
 // maskPassword скрывает пароль в connection string для безопасного вывода
