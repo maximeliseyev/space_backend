@@ -14,14 +14,12 @@ import (
 type BotHandler struct {
 	bookingService      *service.BookingService
 	notificationService *service.NotificationService
-	roomService         *service.RoomService
 }
 
-func NewBotHandler(bookingService *service.BookingService, notificationService *service.NotificationService, roomService *service.RoomService) *BotHandler {
+func NewBotHandler(bookingService *service.BookingService, notificationService *service.NotificationService) *BotHandler {
 	return &BotHandler{
 		bookingService:      bookingService,
 		notificationService: notificationService,
-		roomService:         roomService,
 	}
 }
 
@@ -235,15 +233,3 @@ func (h *BotHandler) GetRoomBookings(c *gin.Context) {
 	response.Success(c, bookings)
 }
 
-// GetRooms returns all available rooms
-// GET /api/bot/rooms
-func (h *BotHandler) GetRooms(c *gin.Context) {
-	rooms, err := h.roomService.GetAllRooms()
-	if err != nil {
-		log.Printf("ERROR: Bot failed to get rooms: %v", err)
-		response.InternalServerError(c, err)
-		return
-	}
-
-	response.Success(c, rooms)
-}

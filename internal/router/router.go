@@ -107,7 +107,7 @@ func SetupRouter(
 	botAPI := api.Group("/bot")
 	botAPI.Use(middleware.BotAuthMiddleware(botAPIToken, botToken, allowedChatID, environment, userService))
 	{
-		botHandler := handler.NewBotHandler(bookingService, notificationService, roomService)
+		botHandler := handler.NewBotHandler(bookingService, notificationService)
 
 		// Booking endpoints for bot
 		botAPI.POST("/bookings", botHandler.CreateBooking)
@@ -119,8 +119,12 @@ func SetupRouter(
 		botAPI.POST("/notifications/unsubscribe", botHandler.Unsubscribe)
 		botAPI.GET("/notifications/subscriptions", botHandler.GetSubscriptions)
 
-		// Room info for bot
-		botAPI.GET("/rooms", botHandler.GetRooms)
+		roomHandler := handler.NewRoomHandler(roomService)
+		rooms := protected.Group("/rooms")
+		{
+			rooms.GET("", roomHandler.GetAllRooms)
+			rooms.GET("/:id", roomHandler.GetRoom)
+		}
 	}
 
 	return r
