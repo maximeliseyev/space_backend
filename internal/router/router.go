@@ -119,11 +119,11 @@ func SetupRouter(
 		botAPI.POST("/notifications/unsubscribe", botHandler.Unsubscribe)
 		botAPI.GET("/notifications/subscriptions", botHandler.GetSubscriptions)
 
-		roomHandler := handler.NewRoomHandler(roomService)
-		rooms := protected.Group("/rooms")
+		roomBotHandler := handler.NewRoomHandler(roomService)
+		rooms := botAPI.Group("/rooms")
 		{
-			rooms.GET("", roomHandler.GetAllRooms)
-			rooms.GET("/:id", roomHandler.GetRoom)
+			rooms.GET("", roomBotHandler.GetAllRooms)
+			rooms.GET("/:id", roomBotHandler.GetRoom)
 		}
 	}
 
