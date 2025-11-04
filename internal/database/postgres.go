@@ -3,6 +3,8 @@ package database
 import (
 	"fmt"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/space/backend/internal/models"
 	"gorm.io/driver/postgres"
@@ -18,9 +20,23 @@ func Connect(databaseURL string, debug bool) (*gorm.DB, error) {
 		logLevel = logger.Info
 	}
 
+	// Добавляем параметр TimeZone=UTC если его нет в URL
+	// Это критически важно для корректной работы с часовыми поясами
+	if !strings.Contains(databaseURL, "TimeZone=") {
+		separator := "?"
+		if strings.Contains(databaseURL, "?") {
+			separator = "&"
+		}
+		databaseURL = databaseURL + separator + "TimeZone=UTC"
+	}
+
 	// Открываем подключение к PostgreSQL
 	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
+		NowFunc: func() time.Time {
+			// Всегда используем UTC для консистентности
+			return time.Now().UTC()
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
