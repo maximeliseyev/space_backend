@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,9 @@ var (
 	ErrMissingAuthHeader = errors.New("missing authorization header")
 	ErrInvalidAuthHeader = errors.New("invalid authorization header")
 	ErrNotAdmin          = errors.New("admin privileges required")
+	ErrInvalidBotToken   = errors.New("invalid bot API token")
+	ErrMissingBotToken   = errors.New("missing X-Bot-Token header")
+	ErrMissingTelegramID = errors.New("missing X-Telegram-User-ID header")
 )
 
 // TelegramAuthMiddleware validates Telegram Mini App authentication
@@ -205,6 +209,113 @@ func RequireAdmin() gin.HandlerFunc {
 		}
 
 		log.Printf("INFO: User %d (TelegramID: %d) granted admin access", user.ID, user.TelegramID)
+		c.Next()
+	}
+}
+
+// BotAuthMiddleware validates bot API authentication
+// Бот должен передавать два заголовка:
+// - X-Bot-Token: секретный токен для авторизации бота
+// - X-Telegram-User-ID: ID пользователя Telegram от имени которого выполняется действие
+// - X-Telegram-Username, X-Telegram-First-Name, X-Telegram-Last-Name (опционально)
+func BotAuthMiddleware(botAPIToken string, botToken string, allowedChatID int64, environment string, userService *service.UserService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Проверяем наличие токена бота
+		providedToken := c.GetHeader("X-Bot-Token")
+		if providedToken == "" {
+			log.Println("ERROR: Bot request missing X-Bot-Token header")
+			response.Unauthorized(c, ErrMissingBotToken)
+			c.Abort()
+			return
+		}
+
+		// Проверяем валидность токена
+		if providedToken != botAPIToken {
+			log.Printf("ERROR: Invalid bot token provided: %s... (expected: %s...)", providedToken[:10], botAPIToken[:10])
+			response.Unauthorized(c, ErrInvalidBotToken)
+			c.Abort()
+			return
+		}
+
+		// Получаем Telegram User ID
+		telegramUserIDStr := c.GetHeader("X-Telegram-User-ID")
+		if telegramUserIDStr == "" {
+			log.Println("ERROR: Bot request missing X-Telegram-User-ID header")
+			response.BadRequest(c, ErrMissingTelegramID)
+			c.Abort()
+			return
+		}
+
+		telegramUserID, err := strconv.ParseInt(telegramUserIDStr, 10, 64)
+		if err != nil {
+			log.Printf("ERROR: Invalid X-Telegram-User-ID format: %s", telegramUserIDStr)
+			response.BadRequest(c, errors.New("invalid X-Telegram-User-ID format"))
+			c.Abort()
+			return
+		}
+
+		log.Printf("INFO: Bot authenticated, acting on behalf of Telegram user %d", telegramUserID)
+
+		// Проверяем членство в группе (если настроено)
+		if allowedChatID != 0 {
+			// Проверяем кэш сначала
+			if isMember, cached := telegram.GlobalCache.Get(telegramUserID); cached {
+				if !isMember {
+					log.Printf("INFO: Bot request denied - user %d not a group member (cached)", telegramUserID)
+					response.Forbidden(c, errors.New("user is not a member of the authorized group"))
+					c.Abort()
+					return
+				}
+			} else {
+				// Проверяем членство через API
+				isMember, err := telegram.CheckUserInChat(telegramUserID, allowedChatID, botToken)
+				if err != nil {
+					log.Printf("ERROR: Failed to check membership for user %d: %v", telegramUserID, err)
+					if environment == "production" {
+						response.InternalServerError(c, errors.New("failed to verify membership"))
+						c.Abort()
+						return
+					}
+					log.Println("WARNING: Membership check failed in development mode, allowing access")
+				} else {
+					// Сохраняем результат в кэш
+					telegram.GlobalCache.Set(telegramUserID, isMember, 5*time.Minute)
+					if !isMember {
+						log.Printf("INFO: Bot request denied - user %d not a group member", telegramUserID)
+						response.Forbidden(c, errors.New("user is not a member of the authorized group"))
+						c.Abort()
+						return
+					}
+				}
+			}
+		}
+
+		// Получаем или создаём пользователя
+		username := c.GetHeader("X-Telegram-Username")
+		firstName := c.GetHeader("X-Telegram-First-Name")
+		lastName := c.GetHeader("X-Telegram-Last-Name")
+		languageCode := c.GetHeader("X-Telegram-Language-Code")
+
+		user, err := userService.SyncTelegramUser(
+			telegramUserID,
+			username,
+			firstName,
+			lastName,
+			languageCode,
+		)
+		if err != nil {
+			log.Printf("ERROR: Failed to sync user %d: %v", telegramUserID, err)
+			response.InternalServerError(c, err)
+			c.Abort()
+			return
+		}
+
+		// Сохраняем пользователя в контекст
+		c.Set("userID", user.ID)
+		c.Set("user", user)
+		c.Set("isBot", true) // Флаг что запрос от бота
+
+		log.Printf("INFO: Bot request authorized for user %d (DB ID: %d)", telegramUserID, user.ID)
 		c.Next()
 	}
 }

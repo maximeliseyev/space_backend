@@ -12,6 +12,7 @@ import (
 // SetupRouter configures all routes for the application
 func SetupRouter(
 	botToken string,
+	botAPIToken string,
 	allowedChatID int64,
 	allowedOrigins []string,
 	environment string,
@@ -20,6 +21,7 @@ func SetupRouter(
 	userService *service.UserService,
 	roomService *service.RoomService,
 	bookingService *service.BookingService,
+	notificationService *service.NotificationService,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -99,6 +101,26 @@ func SetupRouter(
 			bookings.POST("/:id/join", bookingHandler.JoinBooking)
 			bookings.POST("/:id/leave", bookingHandler.LeaveBooking)
 		}
+	}
+
+	// Bot API routes (require bot authentication)
+	botAPI := api.Group("/bot")
+	botAPI.Use(middleware.BotAuthMiddleware(botAPIToken, botToken, allowedChatID, environment, userService))
+	{
+		botHandler := handler.NewBotHandler(bookingService, notificationService, roomService)
+
+		// Booking endpoints for bot
+		botAPI.POST("/bookings", botHandler.CreateBooking)
+		botAPI.GET("/bookings/user/:telegram_id", botHandler.GetUserBookings)
+		botAPI.GET("/rooms/:id/bookings", botHandler.GetRoomBookings)
+
+		// Notification subscription endpoints
+		botAPI.POST("/notifications/subscribe", botHandler.Subscribe)
+		botAPI.POST("/notifications/unsubscribe", botHandler.Unsubscribe)
+		botAPI.GET("/notifications/subscriptions", botHandler.GetSubscriptions)
+
+		// Room info for bot
+		botAPI.GET("/rooms", botHandler.GetRooms)
 	}
 
 	return r

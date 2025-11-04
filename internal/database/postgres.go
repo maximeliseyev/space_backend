@@ -50,6 +50,7 @@ func Migrate(db *gorm.DB) error {
 		&models.Equipment{},
 		&models.Instruction{},
 		&models.Booking{},
+		&models.NotificationSubscription{},
 	)
 
 	if err != nil {

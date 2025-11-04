@@ -23,6 +23,7 @@ type Config struct {
 	AllowedOrigins       []string // CORS allowed origins
 	AuthDateTTLMiniApp   int64    // TTL for Mini App auth_date in seconds (default: 3600 = 1 hour)
 	AuthDateTTLLoginWidget int64  // TTL for Login Widget auth_date in seconds (default: 604800 = 7 days)
+	BotAPIToken          string   // Secret token for bot API authentication
 }
 
 // Load loads configuration from environment variables
@@ -64,6 +65,7 @@ func Load() (*Config, error) {
 		AllowedOrigins:       parseAllowedOrigins(getEnv("ALLOWED_ORIGINS", "")),
 		AuthDateTTLMiniApp:   authDateTTLMiniApp,
 		AuthDateTTLLoginWidget: authDateTTLLoginWidget,
+		BotAPIToken:          getEnv("BOT_API_TOKEN", ""),
 	}
 
 	// Если DATABASE_URL не задан, но есть SUPABASE_URL - строим DATABASE_URL из Supabase
@@ -79,6 +81,14 @@ func Load() (*Config, error) {
 
 	if config.TelegramBotToken == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
+	}
+
+	if config.BotAPIToken == "" {
+		return nil, fmt.Errorf("BOT_API_TOKEN is required for bot authentication")
+	}
+
+	if len(config.BotAPIToken) < 32 {
+		return nil, fmt.Errorf("BOT_API_TOKEN must be at least 32 characters long for security")
 	}
 
 	return config, nil

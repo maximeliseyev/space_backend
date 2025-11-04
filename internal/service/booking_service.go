@@ -126,6 +126,38 @@ func (s *BookingService) GetUserBookings(userID uint) ([]models.Booking, error) 
 	return s.bookingRepo.GetByUserID(userID)
 }
 
+// GetUserBookingsByTelegramID gets all bookings for a user by Telegram ID
+func (s *BookingService) GetUserBookingsByTelegramID(telegramID int64) ([]models.Booking, error) {
+	user, err := s.userRepo.GetByTelegramID(telegramID)
+	if err != nil {
+		return nil, err
+	}
+	return s.bookingRepo.GetByUserID(user.ID)
+}
+
+// CreateSimpleBooking creates a new booking (simplified version for bot API)
+func (s *BookingService) CreateSimpleBooking(
+	roomID uint,
+	creatorID uint,
+	startTime time.Time,
+	endTime time.Time,
+	title string,
+	description string,
+	estimatedParticipants int,
+	isJoinable bool,
+) (*models.Booking, error) {
+	req := CreateBookingRequest{
+		RoomID:                roomID,
+		StartTime:             startTime,
+		EndTime:               endTime,
+		Title:                 title,
+		Description:           description,
+		EstimatedParticipants: estimatedParticipants,
+		IsJoinable:            isJoinable,
+	}
+	return s.CreateBooking(creatorID, req)
+}
+
 // GetUpcomingBookings gets upcoming bookings
 func (s *BookingService) GetUpcomingBookings(limit int) ([]models.Booking, error) {
 	return s.bookingRepo.GetUpcoming(limit)

@@ -46,6 +46,7 @@ func main() {
 	bookingRepo := repository.NewBookingRepository(db)
 	equipmentRepo := repository.NewEquipmentRepository(db)
 	instructionRepo := repository.NewInstructionRepository(db)
+	notificationRepo := repository.NewNotificationRepository(db)
 
 	log.Println("Repositories initialized")
 
@@ -53,12 +54,14 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	roomService := service.NewRoomService(roomRepo, equipmentRepo)
 	bookingService := service.NewBookingService(bookingRepo, roomRepo, userRepo)
+	notificationService := service.NewNotificationService(notificationRepo, roomRepo)
 
 	log.Println("Services initialized")
 
 	// Настраиваем роутер
 	r := router.SetupRouter(
 		cfg.TelegramBotToken,
+		cfg.BotAPIToken,
 		cfg.AllowedChatID,
 		cfg.AllowedOrigins,
 		cfg.Environment,
@@ -67,6 +70,7 @@ func main() {
 		userService,
 		roomService,
 		bookingService,
+		notificationService,
 	)
 
 	log.Printf("Router configured")
