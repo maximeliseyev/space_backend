@@ -9,6 +9,7 @@ import (
 	"github.com/space/backend/internal/models"
 	"github.com/space/backend/internal/service"
 	"github.com/space/backend/pkg/response"
+	"github.com/space/backend/pkg/utils"
 )
 
 type BotHandler struct {
@@ -202,7 +203,7 @@ func (h *BotHandler) GetRoomBookings(c *gin.Context) {
 
 	// Default to current time and 30 days ahead if not specified
 	if startTimeStr != "" {
-		t, err := time.Parse(time.RFC3339, startTimeStr)
+		t, err := utils.ParseFlexibleTime(startTimeStr)
 		if err != nil {
 			response.BadRequest(c, err)
 			return
@@ -213,7 +214,7 @@ func (h *BotHandler) GetRoomBookings(c *gin.Context) {
 	}
 
 	if endTimeStr != "" {
-		t, err := time.Parse(time.RFC3339, endTimeStr)
+		t, err := utils.ParseFlexibleTime(endTimeStr)
 		if err != nil {
 			response.BadRequest(c, err)
 			return

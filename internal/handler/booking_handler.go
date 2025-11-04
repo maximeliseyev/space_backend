@@ -2,11 +2,11 @@ package handler
 
 import (
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/space/backend/internal/service"
 	"github.com/space/backend/pkg/response"
+	"github.com/space/backend/pkg/utils"
 )
 
 // BookingHandler handles booking-related HTTP requests
@@ -121,13 +121,13 @@ func (h *BookingHandler) GetCalendarEvents(c *gin.Context) {
 		return
 	}
 
-	start, err := time.Parse(time.RFC3339, startStr)
+	start, err := utils.ParseFlexibleTime(startStr)
 	if err != nil {
 		response.BadRequest(c, err)
 		return
 	}
 
-	end, err := time.Parse(time.RFC3339, endStr)
+	end, err := utils.ParseFlexibleTime(endStr)
 	if err != nil {
 		response.BadRequest(c, err)
 		return

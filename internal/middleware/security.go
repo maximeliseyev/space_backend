@@ -127,6 +127,9 @@ func SecurityHeaders() gin.HandlerFunc {
 		// Permissions Policy (бывший Feature-Policy)
 		c.Writer.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 
+		// Явно указываем UTF-8 для всех JSON ответов
+		c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+
 		c.Next()
 	}
 }
