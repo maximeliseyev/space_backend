@@ -56,9 +56,13 @@ func (b *Booking) BeforeCreate(tx *gorm.DB) error {
 
 // BeforeUpdate hook для валидации
 func (b *Booking) BeforeUpdate(tx *gorm.DB) error {
-	// Проверка что время окончания позже времени начала
-	if !b.EndTime.After(b.StartTime) {
-		return gorm.ErrInvalidData
+	// Пропускаем валидацию если это частичное обновление (например, только статуса)
+	// Проверяем что время не является нулевым (zero time)
+	if !b.StartTime.IsZero() && !b.EndTime.IsZero() {
+		// Проверка что время окончания позже времени начала
+		if !b.EndTime.After(b.StartTime) {
+			return gorm.ErrInvalidData
+		}
 	}
 	return nil
 }

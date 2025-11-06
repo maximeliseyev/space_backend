@@ -24,8 +24,8 @@ func main() {
 
 	log.Printf("Starting Space Backend API in %s mode...", cfg.Environment)
 
-	// Запускаем фоновую очистку кэша членства в группе каждые 10 минут
-	telegram.GlobalCache.StartCleanupRoutine(10 * time.Minute)
+	// Запускаем фоновую очистку кэша членства в группе
+	telegram.GlobalCache.StartCleanupRoutine(12 * time.Hour)
 	log.Println("Membership cache cleanup routine started")
 
 	// Подключаемся к базе данных

@@ -80,6 +80,24 @@ func (r *BookingRepository) CheckConflict(roomID uint, start, end time.Time, exc
 	return count > 0, err
 }
 
+// GetConflictingBookings returns all bookings that conflict with the given time range
+func (r *BookingRepository) GetConflictingBookings(roomID uint, start, end time.Time, excludeBookingID *uint) ([]models.Booking, error) {
+	var bookings []models.Booking
+	query := r.db.Preload("Room").
+		Preload("Creator").
+		Preload("Participants").
+		Where("room_id = ? AND status != ? AND start_time < ? AND end_time > ?",
+			roomID, models.BookingStatusCancelled, end, start)
+
+	// Исключаем конкретное бронирование (для обновления)
+	if excludeBookingID != nil {
+		query = query.Where("id != ?", *excludeBookingID)
+	}
+
+	err := query.Order("start_time").Find(&bookings).Error
+	return bookings, err
+}
+
 // GetUpcoming gets upcoming bookings
 func (r *BookingRepository) GetUpcoming(limit int) ([]models.Booking, error) {
 	var bookings []models.Booking
@@ -119,11 +137,9 @@ func (r *BookingRepository) Delete(id uint) error {
 	return r.db.Delete(&models.Booking{}, id).Error
 }
 
-// Cancel cancels a booking (sets status to cancelled)
+// Cancel cancels a booking (soft delete - sets deleted_at timestamp)
 func (r *BookingRepository) Cancel(id uint) error {
-	return r.db.Model(&models.Booking{}).
-		Where("id = ?", id).
-		Update("status", models.BookingStatusCancelled).Error
+	return r.db.Delete(&models.Booking{}, id).Error
 }
 
 // AddParticipant adds a participant to a booking

@@ -18,6 +18,16 @@ var (
 	ErrNotAuthorized   = errors.New("not authorized to perform this action")
 )
 
+// BookingConflictError represents a conflict error with details about conflicting bookings
+type BookingConflictError struct {
+	Message            string            `json:"message"`
+	ConflictingBookings []models.Booking `json:"conflicting_bookings"`
+}
+
+func (e *BookingConflictError) Error() string {
+	return e.Message
+}
+
 // BookingService handles booking business logic
 type BookingService struct {
 	bookingRepo *repository.BookingRepository
@@ -76,12 +86,15 @@ func (s *BookingService) CreateBooking(creatorID uint, req CreateBookingRequest)
 	}
 
 	// Проверка на конфликты
-	hasConflict, err := s.bookingRepo.CheckConflict(req.RoomID, req.StartTime, req.EndTime, nil)
+	conflictingBookings, err := s.bookingRepo.GetConflictingBookings(req.RoomID, req.StartTime, req.EndTime, nil)
 	if err != nil {
 		return nil, err
 	}
-	if hasConflict {
-		return nil, ErrBookingConflict
+	if len(conflictingBookings) > 0 {
+		return nil, &BookingConflictError{
+			Message:            "booking conflict: room is already booked for this time",
+			ConflictingBookings: conflictingBookings,
+		}
 	}
 
 	// Получаем участников если они указаны
@@ -278,12 +291,15 @@ func (s *BookingService) UpdateBooking(bookingID, userID uint, req UpdateBooking
 	}
 
 	// Проверка на конфликты (исключая текущее бронирование)
-	hasConflict, err := s.bookingRepo.CheckConflict(booking.RoomID, booking.StartTime, booking.EndTime, &bookingID)
+	conflictingBookings, err := s.bookingRepo.GetConflictingBookings(booking.RoomID, booking.StartTime, booking.EndTime, &bookingID)
 	if err != nil {
 		return nil, err
 	}
-	if hasConflict {
-		return nil, ErrBookingConflict
+	if len(conflictingBookings) > 0 {
+		return nil, &BookingConflictError{
+			Message:            "booking conflict: room is already booked for this time",
+			ConflictingBookings: conflictingBookings,
+		}
 	}
 
 	err = s.bookingRepo.Update(booking)

@@ -85,6 +85,14 @@ func Conflict(c *gin.Context, err error) {
 	Error(c, http.StatusConflict, err)
 }
 
+// ConflictWithData sends a 409 Conflict response with additional data
+func ConflictWithData(c *gin.Context, message string, data interface{}) {
+	c.JSON(http.StatusConflict, gin.H{
+		"error": message,
+		"data":  data,
+	})
+}
+
 // InternalServerError sends a 500 Internal Server Error response
 func InternalServerError(c *gin.Context, err error) {
 	Error(c, http.StatusInternalServerError, err)

@@ -43,6 +43,12 @@ func (h *BookingHandler) CreateBooking(c *gin.Context) {
 
 	booking, err := h.bookingService.CreateBooking(userID.(uint), req)
 	if err != nil {
+		// Проверяем, является ли это ошибкой конфликта с деталями
+		if conflictErr, ok := err.(*service.BookingConflictError); ok {
+			response.ConflictWithData(c, conflictErr.Message, conflictErr.ConflictingBookings)
+			return
+		}
+
 		switch err {
 		case service.ErrBookingConflict:
 			response.Conflict(c, err)
@@ -267,6 +273,12 @@ func (h *BookingHandler) UpdateBooking(c *gin.Context) {
 
 	booking, err := h.bookingService.UpdateBooking(uint(id), userID.(uint), req)
 	if err != nil {
+		// Проверяем, является ли это ошибкой конфликта с деталями
+		if conflictErr, ok := err.(*service.BookingConflictError); ok {
+			response.ConflictWithData(c, conflictErr.Message, conflictErr.ConflictingBookings)
+			return
+		}
+
 		switch err {
 		case service.ErrNotAuthorized:
 			response.Forbidden(c, err)
