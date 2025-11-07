@@ -90,3 +90,80 @@ func (h *RoomHandler) GetRoomEquipment(c *gin.Context) {
 
 	response.Success(c, equipment)
 }
+
+// CreateRoom godoc
+// @Summary Create a new room (admin only)
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Param room body service.CreateRoomRequest true "Room data"
+// @Success 201 {object} models.Room
+// @Router /api/rooms [post]
+func (h *RoomHandler) CreateRoom(c *gin.Context) {
+	var req service.CreateRoomRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err)
+		return
+	}
+
+	room, err := h.roomService.CreateRoom(req)
+	if err != nil {
+		response.InternalServerError(c, err)
+		return
+	}
+
+	response.Created(c, room)
+}
+
+// UpdateRoom godoc
+// @Summary Update a room (admin only)
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Param id path int true "Room ID"
+// @Param room body service.UpdateRoomRequest true "Room data"
+// @Success 200 {object} models.Room
+// @Router /api/rooms/{id} [patch]
+func (h *RoomHandler) UpdateRoom(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, err)
+		return
+	}
+
+	var req service.UpdateRoomRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err)
+		return
+	}
+
+	room, err := h.roomService.UpdateRoom(uint(id), req)
+	if err != nil {
+		response.InternalServerError(c, err)
+		return
+	}
+
+	response.Success(c, room)
+}
+
+// DeleteRoom godoc
+// @Summary Delete a room (admin only)
+// @Tags rooms
+// @Param id path int true "Room ID"
+// @Success 204
+// @Router /api/rooms/{id} [delete]
+func (h *RoomHandler) DeleteRoom(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, err)
+		return
+	}
+
+	err = h.roomService.DeleteRoom(uint(id))
+	if err != nil {
+		response.InternalServerError(c, err)
+		return
+	}
+
+	response.NoContent(c)
+}

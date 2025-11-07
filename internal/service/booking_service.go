@@ -181,15 +181,21 @@ func (s *BookingService) GetCalendarEvents(start, end time.Time) ([]models.Booki
 	return s.bookingRepo.GetForCalendar(start, end)
 }
 
-// CancelBooking cancels a booking (only creator can cancel)
+// CancelBooking cancels a booking (creator or admin can cancel)
 func (s *BookingService) CancelBooking(bookingID, userID uint) error {
 	booking, err := s.bookingRepo.GetByID(bookingID)
 	if err != nil {
 		return err
 	}
 
-	// Проверка прав доступа
-	if booking.CreatorID != userID {
+	// Получаем пользователя для проверки прав
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return err
+	}
+
+	// Проверка прав доступа: создатель или админ
+	if booking.CreatorID != userID && !user.IsAdmin() {
 		return ErrNotAuthorized
 	}
 
@@ -253,15 +259,21 @@ type UpdateBookingRequest struct {
 	IsJoinable            *bool      `json:"is_joinable"`
 }
 
-// UpdateBooking updates a booking (only creator can update)
+// UpdateBooking updates a booking (creator or admin can update)
 func (s *BookingService) UpdateBooking(bookingID, userID uint, req UpdateBookingRequest) (*models.Booking, error) {
 	booking, err := s.bookingRepo.GetByID(bookingID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Проверка прав доступа
-	if booking.CreatorID != userID {
+	// Получаем пользователя для проверки прав
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Проверка прав доступа: создатель или админ
+	if booking.CreatorID != userID && !user.IsAdmin() {
 		return nil, ErrNotAuthorized
 	}
 
@@ -312,18 +324,27 @@ func (s *BookingService) UpdateBooking(bookingID, userID uint, req UpdateBooking
 
 // FormatBookingForCalendar formats booking for FullCalendar
 func FormatBookingForCalendar(booking *models.Booking) map[string]interface{} {
+	// Формируем информацию о создателе
+	creatorInfo := map[string]interface{}{
+		"id":         booking.Creator.ID,
+		"first_name": booking.Creator.FirstName,
+		"last_name":  booking.Creator.LastName,
+		"username":   booking.Creator.Username,
+	}
+
 	return map[string]interface{}{
-		"id":          fmt.Sprintf("%d", booking.ID),
-		"title":       booking.Title,
-		"start":       booking.StartTime.Format(time.RFC3339),
-		"end":         booking.EndTime.Format(time.RFC3339),
-		"resourceId":  fmt.Sprintf("%d", booking.RoomID),
+		"id":         fmt.Sprintf("%d", booking.ID),
+		"title":      booking.Title,
+		"start":      booking.StartTime.Format(time.RFC3339),
+		"end":        booking.EndTime.Format(time.RFC3339),
+		"resourceId": fmt.Sprintf("%d", booking.RoomID),
+		"calendarId": fmt.Sprintf("room_%d", booking.RoomID),
+		"creator":    creatorInfo, // Полная информация о создателе
 		"extendedProps": map[string]interface{}{
 			"roomName":     booking.Room.Name,
-			"creator":      booking.Creator.Username,
 			"description":  booking.Description,
-			"participants": len(booking.Participants),
-			"isJoinable":   booking.IsJoinable,
+			"participants": booking.Participants,
+			"allow_join":   booking.IsJoinable,
 			"status":       booking.Status,
 		},
 	}

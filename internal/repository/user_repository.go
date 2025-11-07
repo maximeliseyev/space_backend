@@ -68,6 +68,7 @@ func (r *UserRepository) GetOrCreate(telegramID int64, username, firstName, last
 		LastName:     lastName,
 		LanguageCode: languageCode,
 		Role:         models.RoleUser, // По умолчанию обычный пользователь (админ назначается вручную через SQL)
+		// Userpic будет установлен через SyncUserpic после создания
 	}
 
 	err = r.Create(user)
@@ -121,6 +122,29 @@ func (r *UserRepository) SyncFromTelegram(telegramID int64, username, firstName,
 	}
 
 	return user, nil
+}
+
+// SyncUserpic updates user's profile picture URL
+func (r *UserRepository) SyncUserpic(telegramID int64, userpicURL string) error {
+	user, err := r.GetByTelegramID(telegramID)
+	if err != nil {
+		return err
+	}
+
+	// Обновляем только если URL изменился
+	if user.Userpic != userpicURL {
+		log.Printf("DEBUG: Updating userpic for user ID %d: '%s' -> '%s'", user.ID, user.Userpic, userpicURL)
+		user.Userpic = userpicURL
+		return r.Update(user)
+	}
+
+	log.Printf("DEBUG: Userpic unchanged for user ID %d", user.ID)
+	return nil
+}
+
+// UpdateAbout updates user's about/bio field
+func (r *UserRepository) UpdateAbout(userID uint, about string) error {
+	return r.db.Model(&models.User{}).Where("id = ?", userID).Update("about", about).Error
 }
 
 // Update updates a user

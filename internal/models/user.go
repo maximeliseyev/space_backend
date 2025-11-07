@@ -24,6 +24,8 @@ type User struct {
 	PhoneNumber  string         `gorm:"index" json:"phone_number,omitempty"`
 	LanguageCode string         `json:"language_code,omitempty"`
 	Role         UserRole       `gorm:"type:varchar(20);default:'user';not null" json:"role"`
+	Userpic      string         `gorm:"type:varchar(500)" json:"userpic,omitempty"`        // URL профильной фотографии из Telegram
+	About        string         `gorm:"type:varchar(500)" json:"about,omitempty"`          // Описание/био пользователя
 
 	// Телефонная книга - пользователь показывается только если заполнены имя/фамилия и телефон
 	IsInPhoneBook bool `gorm:"default:false" json:"is_in_phonebook"`

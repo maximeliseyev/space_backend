@@ -25,6 +25,10 @@ func SetupRouter(
 ) *gin.Engine {
 	r := gin.Default()
 
+	// Настройка доверенных прокси - отключаем для безопасности
+	// Если используете прокси (nginx, CloudFlare и т.д.), укажите их IP
+	r.SetTrustedProxies(nil)
+
 	// Global middleware - безопасность
 	// 1. Security Headers - должны быть первыми
 	r.Use(middleware.SecurityHeaders())
@@ -77,6 +81,8 @@ func SetupRouter(
 			users.PATCH("/me", userHandler.UpdateProfile)
 			users.POST("/me/sync-telegram", userHandler.SyncFromTelegram) // Синхронизация данных из Telegram
 			users.GET("/phonebook", userHandler.GetPhonebook)
+			users.GET("/:id", userHandler.GetUserByID)     // Получить пользователя по ID
+			users.PATCH("/:id", userHandler.UpdateUserByID) // Обновить пользователя (себя или админ)
 		}
 
 		// Room routes
@@ -86,6 +92,15 @@ func SetupRouter(
 			rooms.GET("", roomHandler.GetAllRooms)
 			rooms.GET("/:id", roomHandler.GetRoom)
 			rooms.GET("/:id/equipment", roomHandler.GetRoomEquipment)
+
+			// Admin-only routes
+			adminRooms := rooms.Group("")
+			adminRooms.Use(middleware.RequireAdmin())
+			{
+				adminRooms.POST("", roomHandler.CreateRoom)
+				adminRooms.PATCH("/:id", roomHandler.UpdateRoom)
+				adminRooms.DELETE("/:id", roomHandler.DeleteRoom)
+			}
 		}
 
 		// Booking routes

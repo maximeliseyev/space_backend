@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/space/backend/internal/models"
@@ -139,4 +140,78 @@ func (h *UserHandler) SyncFromTelegram(c *gin.Context) {
 	}
 
 	response.Success(c, updatedUser)
+}
+
+// GetUserByID godoc
+// @Summary Get user by ID
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} models.User
+// @Router /api/users/{id} [get]
+func (h *UserHandler) GetUserByID(c *gin.Context) {
+	userIDParam := c.Param("id")
+
+	// Парсим ID
+	var userID uint
+	if _, err := fmt.Sscanf(userIDParam, "%d", &userID); err != nil {
+		response.BadRequest(c, errors.New("invalid user ID"))
+		return
+	}
+
+	user, err := h.userService.GetUser(userID)
+	if err != nil {
+		response.NotFound(c, err)
+		return
+	}
+
+	response.Success(c, user)
+}
+
+// UpdateUserByID godoc
+// @Summary Update user profile by ID
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param profile body service.UpdateProfileRequest true "Profile data"
+// @Success 200 {object} models.User
+// @Router /api/users/{id} [patch]
+func (h *UserHandler) UpdateUserByID(c *gin.Context) {
+	userIDParam := c.Param("id")
+
+	// Парсим ID
+	var targetUserID uint
+	if _, err := fmt.Sscanf(userIDParam, "%d", &targetUserID); err != nil {
+		response.BadRequest(c, errors.New("invalid user ID"))
+		return
+	}
+
+	// Получаем текущего пользователя
+	userInterface, exists := c.Get("user")
+	if !exists {
+		response.Unauthorized(c, service.ErrNotAuthorized)
+		return
+	}
+	currentUser := userInterface.(*models.User)
+
+	// Проверяем права доступа
+	if !h.userService.CanEditUser(currentUser, targetUserID) {
+		response.Forbidden(c, errors.New("you don't have permission to edit this user"))
+		return
+	}
+
+	var req service.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err)
+		return
+	}
+
+	user, err := h.userService.UpdateProfile(targetUserID, req)
+	if err != nil {
+		response.InternalServerError(c, err)
+		return
+	}
+
+	response.Success(c, user)
 }

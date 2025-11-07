@@ -52,6 +52,7 @@ func main() {
 
 	// Инициализируем сервисы
 	userService := service.NewUserService(userRepo)
+	userService.SetBotToken(cfg.TelegramBotToken) // Устанавливаем bot token для синхронизации userpic
 	roomService := service.NewRoomService(roomRepo, equipmentRepo)
 	bookingService := service.NewBookingService(bookingRepo, roomRepo, userRepo)
 	notificationService := service.NewNotificationService(notificationRepo, roomRepo)
