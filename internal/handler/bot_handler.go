@@ -196,32 +196,48 @@ func (h *BotHandler) GetRoomBookings(c *gin.Context) {
 	}
 
 	// Parse query parameters for date filtering
+	// Support both "date" parameter (for single day) and "start"/"end" parameters (for range)
+	dateStr := c.Query("date")
 	startTimeStr := c.Query("start")
 	endTimeStr := c.Query("end")
 
 	var startTime, endTime time.Time
 
-	// Default to current time and 30 days ahead if not specified
-	if startTimeStr != "" {
-		t, err := utils.ParseFlexibleTime(startTimeStr)
+	// If "date" parameter is provided, use it for a single day
+	if dateStr != "" {
+		t, err := utils.ParseFlexibleTime(dateStr)
 		if err != nil {
 			response.BadRequest(c, err)
 			return
 		}
-		startTime = t
+		// Set start to beginning of the day (00:00:00)
+		startTime = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+		// Set end to end of the day (23:59:59)
+		endTime = time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, t.Location())
 	} else {
-		startTime = time.Now()
-	}
+		// Use "start" and "end" parameters
+		// Default to current time and 30 days ahead if not specified
+		if startTimeStr != "" {
+			t, err := utils.ParseFlexibleTime(startTimeStr)
+			if err != nil {
+				response.BadRequest(c, err)
+				return
+			}
+			startTime = t
+		} else {
+			startTime = time.Now()
+		}
 
-	if endTimeStr != "" {
-		t, err := utils.ParseFlexibleTime(endTimeStr)
-		if err != nil {
-			response.BadRequest(c, err)
-			return
+		if endTimeStr != "" {
+			t, err := utils.ParseFlexibleTime(endTimeStr)
+			if err != nil {
+				response.BadRequest(c, err)
+				return
+			}
+			endTime = t
+		} else {
+			endTime = startTime.AddDate(0, 0, 30) // 30 days from start
 		}
-		endTime = t
-	} else {
-		endTime = startTime.AddDate(0, 0, 30) // 30 days from start
 	}
 
 	bookings, err := h.bookingService.GetRoomBookings(uint(roomID), startTime, endTime)
