@@ -121,10 +121,9 @@ func buildSupabaseDatabaseURL(supabaseURL string) string {
 		return fmt.Sprintf("postgresql://postgres:[YOUR-PASSWORD]@db.%s.supabase.co:5432/postgres?sslmode=require", projectRef)
 	}
 
-	// Строим полный connection string с принудительным IPv4
-	// prefer_simple=true помогает избежать проблем с IPv6
+	// Строим полный connection string
 	// TimeZone=UTC важно для корректной работы с часовыми поясами
-	return fmt.Sprintf("postgresql://postgres:%s@db.%s.supabase.co:5432/postgres?sslmode=require&prefer_simple=true&TimeZone=UTC", password, projectRef)
+	return fmt.Sprintf("postgresql://postgres:%s@db.%s.supabase.co:5432/postgres?sslmode=require&TimeZone=UTC", password, projectRef)
 }
 
 // getEnv gets environment variable or returns default value
