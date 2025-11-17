@@ -24,6 +24,7 @@ type Config struct {
 	AuthDateTTLMiniApp   int64    // TTL for Mini App auth_date in seconds (default: 3600 = 1 hour)
 	AuthDateTTLLoginWidget int64  // TTL for Login Widget auth_date in seconds (default: 604800 = 7 days)
 	BotAPIToken          string   // Secret token for bot API authentication
+	BotWebhookURL        string   // URL of the bot webhook for sending notifications
 }
 
 // Load loads configuration from environment variables
@@ -66,6 +67,7 @@ func Load() (*Config, error) {
 		AuthDateTTLMiniApp:   authDateTTLMiniApp,
 		AuthDateTTLLoginWidget: authDateTTLLoginWidget,
 		BotAPIToken:          getEnv("BOT_API_TOKEN", ""),
+		BotWebhookURL:        getEnv("BOT_WEBHOOK_URL", "http://localhost:8081"),
 	}
 
 	// Если DATABASE_URL не задан, но есть SUPABASE_URL - строим DATABASE_URL из Supabase

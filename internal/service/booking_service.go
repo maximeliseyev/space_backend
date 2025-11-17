@@ -30,9 +30,10 @@ func (e *BookingConflictError) Error() string {
 
 // BookingService handles booking business logic
 type BookingService struct {
-	bookingRepo *repository.BookingRepository
-	roomRepo    *repository.RoomRepository
-	userRepo    *repository.UserRepository
+	bookingRepo         *repository.BookingRepository
+	roomRepo            *repository.RoomRepository
+	userRepo            *repository.UserRepository
+	notificationService *NotificationService
 }
 
 // NewBookingService creates a new booking service
@@ -40,11 +41,13 @@ func NewBookingService(
 	bookingRepo *repository.BookingRepository,
 	roomRepo *repository.RoomRepository,
 	userRepo *repository.UserRepository,
+	notificationService *NotificationService,
 ) *BookingService {
 	return &BookingService{
-		bookingRepo: bookingRepo,
-		roomRepo:    roomRepo,
-		userRepo:    userRepo,
+		bookingRepo:         bookingRepo,
+		roomRepo:            roomRepo,
+		userRepo:            userRepo,
+		notificationService: notificationService,
 	}
 }
 
@@ -126,7 +129,22 @@ func (s *BookingService) CreateBooking(creatorID uint, req CreateBookingRequest)
 	}
 
 	// Загружаем полную информацию о бронировании
-	return s.bookingRepo.GetByID(booking.ID)
+	fullBooking, err := s.bookingRepo.GetByID(booking.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Отправляем уведомление боту о новом бронировании (асинхронно, не блокируя создание)
+	if s.notificationService != nil {
+		go func() {
+			if err := s.notificationService.NotifyBookingCreated(fullBooking); err != nil {
+				// Логируем ошибку, но не прерываем процесс создания бронирования
+				fmt.Printf("Failed to send booking notification: %v\n", err)
+			}
+		}()
+	}
+
+	return fullBooking, nil
 }
 
 // GetBooking gets a booking by ID
