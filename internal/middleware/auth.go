@@ -71,7 +71,14 @@ func TelegramAuthMiddleware(botToken string, userService *service.UserService, t
 
 		if err != nil {
 			log.Printf("Auth validation error (%s): %v", authType, err)
-			response.Unauthorized(c, err)
+
+			// Для ошибок истекшей авторизации используем специальный код
+			if errors.Is(err, telegram.ErrAuthDateExpired) {
+				response.UnauthorizedWithCode(c, err, "AUTH_EXPIRED")
+			} else {
+				response.Unauthorized(c, err)
+			}
+
 			c.Abort()
 			return
 		}

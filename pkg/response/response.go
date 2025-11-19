@@ -10,6 +10,7 @@ import (
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
+	Code    string `json:"code,omitempty"` // Код ошибки для клиента
 }
 
 // SuccessResponse represents a success response
@@ -68,6 +69,14 @@ func BadRequest(c *gin.Context, err error) {
 // Unauthorized sends a 401 Unauthorized response
 func Unauthorized(c *gin.Context, err error) {
 	Error(c, http.StatusUnauthorized, err)
+}
+
+// UnauthorizedWithCode sends a 401 Unauthorized response with error code
+func UnauthorizedWithCode(c *gin.Context, err error, code string) {
+	c.JSON(http.StatusUnauthorized, ErrorResponse{
+		Error: err.Error(),
+		Code:  code,
+	})
 }
 
 // Forbidden sends a 403 Forbidden response

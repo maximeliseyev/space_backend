@@ -51,7 +51,7 @@ func Load() (*Config, error) {
 
 	// Parse Auth Date TTL values
 	authDateTTLMiniApp := parseInt64WithDefault(getEnv("AUTH_DATE_TTL_MINIAPP", ""), 3600) // 1 hour default
-	authDateTTLLoginWidget := parseInt64WithDefault(getEnv("AUTH_DATE_TTL_LOGIN_WIDGET", ""), 604800) // 7 days default
+	authDateTTLLoginWidget := parseInt64WithDefault(getEnv("AUTH_DATE_TTL_LOGIN_WIDGET", ""), 2592000) // 30 days default (вместо 7 дней)
 
 	config := &Config{
 		ServerPort:           getEnv("SERVER_PORT", "8080"),
